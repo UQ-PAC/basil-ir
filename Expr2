@@ -1,0 +1,113 @@
+theory Expr
+  imports Type
+begin
+
+section \<open>Literals\<close>
+(*
+text \<open>Replication of Literal.\<close>
+datatype lit =
+  TrueLit 
+  | FalseLit
+  | IntLit integer
+  | BVLit integer int32
+
+subsection \<open>Export\<close>
+
+code_printing
+  type_constructor lit \<rightharpoonup> (Scala) "Literal"
+  | constant "TrueLit" \<rightharpoonup> (Scala) "TrueLiteral"
+  | constant "FalseLit" \<rightharpoonup> (Scala) "FalseLiteral"
+  | constant "IntLit" \<rightharpoonup> (Scala) "IntLiteral'(_)"
+  | constant "BVLit" \<rightharpoonup> (Scala) "BitVecLiteral'(_,/ _)"
+
+section \<open>Variables\<close>
+
+text \<open>Replication of Variables. All variable references seem to carry their type.\<close>
+datatype var =
+  Register string int32
+  | Local string type
+
+fun type_of_var
+  where
+    "type_of_var (Register _ w) = BVType w"
+  | "type_of_var (Local _ t) = t"
+
+subsection \<open>Export\<close>
+code_printing
+  type_constructor var \<rightharpoonup> (Scala) "Variable"
+  | constant "Register" \<rightharpoonup> (Scala) "Register'(_,/ _)"
+  | constant "Local" \<rightharpoonup> (Scala) "LocalVar'(_,/ _)"
+*)
+section \<open>Memory\<close>
+
+text \<open>Replication of Variables. All variable references seem to carry their type.\<close>
+datatype mem =
+  StackMem string int32 int32
+  | SharedMem string int32 int32
+
+fun type_of_mem
+  where
+    "type_of_mem (StackMem _ k v) = MapType (BVType k) (BVType v)"
+  | "type_of_mem (SharedMem _ k v) = MapType (BVType k) (BVType v)"
+
+subsection \<open>Export\<close>
+code_printing
+  type_constructor mem \<rightharpoonup> (Scala) "Memory"
+  | constant "StackMem" \<rightharpoonup> (Scala) "StackMemory'(_,/ _,/ _)"
+  | constant "SharedMem" \<rightharpoonup> (Scala) "SharedMemory'(_,/ _,/ _)"
+
+section \<open>Expressions\<close>
+
+datatype expr =
+    TrueLit 
+  | FalseLit
+  | IntLit integer
+  | BVLit integer int32
+  | Register string int32
+  | Local string type
+  | BVExtract int32 int32 expr
+  | BVRepeat int32 expr
+  | BVZExt int32 expr
+  | BVSExt int32 expr
+
+code_printing
+  type_constructor expr \<rightharpoonup> (Scala) "Expr"
+  | constant "TrueLit" \<rightharpoonup> (Scala) "TrueLiteral"
+  | constant "FalseLit" \<rightharpoonup> (Scala) "FalseLiteral"
+  | constant "IntLit" \<rightharpoonup> (Scala) "IntLiteral'(_)"
+  | constant "BVLit" \<rightharpoonup> (Scala) "BitVecLiteral'(_,/ _)"
+  | constant "Register" \<rightharpoonup> (Scala) "Register'(_,/ _)"
+  | constant "Local" \<rightharpoonup> (Scala) "LocalVar'(_,/ _)"
+  | constant "BVExtract" \<rightharpoonup> (Scala) "Extract'(_,/ _,/ _)"
+  | constant "BVRepeat" \<rightharpoonup> (Scala) "Repeat'(_,/ _)"
+  | constant "BVZExt" \<rightharpoonup> (Scala) "ZeroExtend'(_,/ _)"
+  | constant "BVSExt" \<rightharpoonup> (Scala) "SignExtend'(_,/ _)"
+
+(*
+fun type_of_expr
+  where
+    "type_of_expr (TrueLit)      = BoolType"
+  | "type_of_expr (FalseLit)     = BoolType"
+  | "type_of_expr (BVLit _ w)    = BVType w"
+  | "type_of_expr (IntLit _)     = IntType"
+  | "type_of_expr (Local _ t)    = t"
+  | "type_of_expr (Register _ w) = BVType w"
+  | "type_of_expr (BVExtract hi lo e) = BVType (hi - lo + 1)"
+  | "type_of_expr (BVRepeat rep e) = 
+      (case type_of_expr e of BVType w \<Rightarrow> BVType (w * rep) | _ \<Rightarrow> undefined)"
+  | "type_of_expr (BVZExt w e) = BVType w"
+  | "type_of_expr (BVSExt w e) = BVType w"
+*)
+
+fun wf_expr
+  where
+    "wf_expr (BVLit _ w) = (w > 0)"
+  | "wf_expr (Local _ t) = wf_type t"
+  | "wf_expr (Register _ w) = wf_type (BVType w)"
+  | "wf_expr (BVExtract hi lo e) = (hi \<ge> lo \<and> lo \<ge> 0 \<and> wf_expr e)" (* TODO: type of e *)
+  | "wf_expr (BVRepeat rep e) = (rep > 0 \<and> wf_expr e)"
+  | "wf_expr (BVZExt w e) = (w > 0 \<and> wf_expr e)"
+  | "wf_expr (BVSExt w e) = (w > 0 \<and> wf_expr e)"
+  | "wf_expr _ = True"
+
+end
