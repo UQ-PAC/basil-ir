@@ -1,0 +1,137 @@
+
+
+open import Bool Num List Set Set_extra Map Map_extra Basic_classes Maybe Assert_extra
+
+type btype = 
+  BitvecType of int
+  | BoolType
+
+type BVOp = 
+  BVADD
+  | BVAND
+  | BVOR
+  | BVXOR
+  | BVSDIV
+  | BVUDIV
+  | BVSREM
+  | BVUREM
+  | BVSMOD
+  | BVMUL
+  | BVASHR
+  | BVLSHR
+  | BVSHL
+
+type expr = bvexpr | boolexpr
+
+type bvexpr = 
+  | BVConstant of int * int
+  | BinExpr of BVOp * int * bvexpr * bvexpr
+  | BVNot of int * bvexpr
+  | BVNeg of int * bvexpr
+  | BVVar of int * string 
+  | Extend of int *  bvexpr 
+  | BVFApply of string * list expr * int
+
+
+type boolexpr = 
+  BoolConstant of bool
+  | BVCOMP of bvexpr * bvexpr
+  | BVULT of bvexpr * bvexpr
+  | BVSLT of bvexpr * bvexpr
+  | BVEQ of bvexpr * bvexpr
+  | BoolEQ of boolexpr * boolexpr
+  | BoolAND of boolexpr * boolexpr
+  | BoolOR of boolexpr * boolexpr
+  | BoolNOT of boolexpr
+  | BoolVar of string 
+  | BoolFApply of string * list expr
+
+let evalbool (b:boolexpr) : bool = match b with
+  BoolConstant b -> b
+  | BVCOMP e1 e2 -> e1 <> e2
+  | _ -> false
+  end
+
+type ident = string
+
+type endian = 
+  LittleEndian
+  | BigEndian
+
+type stmt = 
+  | Decl of btype
+  | BoolDefAssign of ident * boolexpr
+  | BVDefAssign of ident * int * bvexpr
+  | Store of ident * ident * bvexpr * bvexpr
+  | Load of ident * ident * bvexpr * int
+  | Call of ident * list expr
+  | PureCallAssign of ident * ident * list expr
+
+type blockterm = 
+  Goto of list ident 
+  | Stop
+  | Unreachable
+
+type block = <| 
+  block_label: ident;
+  stmts: list stmt;
+  terminator: blockterm;
+|>
+
+type proc = <|
+  proc_label: ident;
+  entry_block: ident;
+  blocks: map ident block
+|>
+
+
+
+let outgoing (b: blockterm) : list ident = match b with
+  | Goto is -> is
+  | _ -> []
+end
+
+let incoming (p: proc) : map ident (set ident) =
+  let outgoing = Set.map (fun a -> (a, Set.fromList (outgoing a.terminator))) (Map.range p.blocks) in
+  let get_incoming_for (i:ident) : set ident = Set.map (fun (b, og) -> b.block_label) (Set.filter (fun (b, og) -> Set.member i og) outgoing) in
+  let bids : set ident = Map.domain p.blocks in
+  let x = Map_extra.fromSet (fun x -> get_incoming_for x) bids in
+  x
+
+let Option_get (x: maybe 'a) = match x with 
+  | Just y -> y
+  | Nothing -> failwith "Unsafe maybe get"
+  end
+
+
+(* two val boolean lattice *)
+
+let bool_bottom = false
+let bool_xf (i: bool) (s:stmt) : bool = false
+let bool_join (l:bool) (r:bool) : bool = l || r
+
+let rec worklist_solver (p:proc) (worklist:list ident) (xf: 'a -> stmt -> 'a) (join : 'a -> 'a -> 'a) (res: map ident 'a) (bottom: 'a) (incoming: map ident (set ident)): map ident 'a = 
+  match worklist with 
+    | h::worklist -> 
+      let getExisting i = match (Map.lookup i res) with 
+        | Just x -> x
+        | Nothing -> bottom
+        end in
+      let base : 'a = getExisting h in
+      let bl = Option_get (Map.lookup h p.blocks) in
+      let xfed : 'a = List.foldl xf base bl.stmts in
+      let nres = Map.insert h xfed res in
+      let indeps = Set_extra.toList (Option_get (Map.lookup h incoming)) in
+      let indeps = List.map getExisting indeps in
+      let xfed = match indeps with 
+        | [] -> xfed
+        | indeps -> List.foldl join xfed indeps
+      end in
+      let worklist = if (xfed <> base) then ((outgoing bl.terminator) ++ worklist) else worklist in
+      worklist_solver p worklist xf join res bottom incoming
+    | [] -> res
+  end
+
+let wl_init (p:proc) (xf: 'a -> stmt -> 'a) (join : 'a -> 'a -> 'a) (bottom: 'a) : map ident 'a = 
+  let worklist = Set_extra.toList (Map.domain p.blocks) in
+  worklist_solver p worklist xf join Map.empty bottom (incoming p)

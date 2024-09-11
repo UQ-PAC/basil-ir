@@ -1,0 +1,8 @@
+session BASILIR = HOL +
+  sessions
+    LEM
+  theories
+    Test
+    Export
+  export_files (in src)
+    "*:**.scala"
