@@ -18,18 +18,8 @@ constructors via code extraction.
 \<close>
 
 datatype lexpr =
-  LRegister string int32
+  LRegister string nat
   | LLocal string type
-
-instance lexpr :: countable
-  by countable_datatype
-
-subsection \<open>Extraction\<close>
-
-code_printing
-  type_constructor lexpr \<rightharpoonup> (Scala) "Variable"
-  | constant "LRegister" \<rightharpoonup> (Scala) "Register'(_,/ _)"
-  | constant "LLocal" \<rightharpoonup> (Scala) "LocalVar'(_,/ _)"
 
 subsection \<open>Translation Utilities\<close>
 
@@ -43,12 +33,6 @@ fun lexpr_of_expr
     "lexpr_of_expr (Register n w) = LRegister n w"
   | "lexpr_of_expr (Local n t) = LLocal n t"
   | "lexpr_of_expr _ = undefined"
-
-subsection \<open>Type Checking\<close>
-
-fun type_of_lexpr
-  where
-    "type_of_lexpr l = type_of_expr (expr_of_lexpr l)"
 
 end
 
